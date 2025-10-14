@@ -1,0 +1,19 @@
+INFO:root:Starting application
+INFO:root:Imports successful
+INFO:root:Flask app created and blueprint registered
+INFO:root:Starting Flask development server
+INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+INFO:werkzeug:[33mPress CTRL+C to quit[0m
+INFO:werkzeug: * Restarting with stat
+INFO:root:Starting application
+INFO:root:Imports successful
+INFO:root:Flask app created and blueprint registered
+INFO:root:Starting Flask development server
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 129-824-548
+INFO:werkzeug:127.0.0.1 - - [13/Oct/2025 09:59:41] "[33mGET / HTTP/1.1[0m" 404 -
+INFO:werkzeug:127.0.0.1 - - [13/Oct/2025 09:59:42] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+INFO:werkzeug:127.0.0.1 - - [13/Oct/2025 09:59:58] "[33mGET /health HTTP/1.1[0m" 404 -
+INFO:werkzeug:127.0.0.1 - - [13/Oct/2025 10:00:34] "[33mGET /GET HTTP/1.1[0m" 404 -
+INFO:werkzeug:127.0.0.1 - - [13/Oct/2025 10:00:47] "GET /api/v1/health HTTP/1.1" 200 -
