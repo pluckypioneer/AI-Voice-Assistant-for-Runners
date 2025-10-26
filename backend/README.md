@@ -1,24 +1,27 @@
 # Backend Service
 
-This is the backend service for the AVAFR project.
+This is the backend service for the AVAFR project, built with FastAPI.
 
 ## Project Structure
 
 ```
 backend/
   ├─ app/
-  │   ├─ main.py          # Project entry point (Flask app initialization, route registration, etc.)
+  │   ├─ main.py          # Legacy Flask entry point
+  │   ├─ main_fastapi.py  # FastAPI entry point (primary)
   │   ├─ api/
   │   │   ├─ v1/
-  │   │   │   ├─ routes.py  # Define API endpoint routes
-  │   │   │   └─ schemas.py # Define request/response data formats (e.g., parameter validation, structure constraints)
+  │   │   │   ├─ routes.py          # Legacy Flask routes
+  │   │   │   ├─ fastapi_routes.py  # FastAPI routes (primary)
+  │   │   │   ├─ schemas.py         # Legacy Flask schemas
+  │   │   │   └─ schemas_fastapi.py # FastAPI Pydantic models (primary)
   │   ├─ config/
   │   │   └─ config.py     # Configuration items (e.g., server port, environment variables)
   │   ├─ db/
-  │   │   └─ base.py       # Basic database configuration (e.g., connection initialization template, no full implementation needed for now)
-  │   ├─ models/           # Reserved directory for data models (no specific models to be implemented in this phase)
-  │   └─ utils/            # Reserved directory for utility functions (e.g., common validation functions, can be empty in this phase)
-  ├─ tests/                # Reserved directory for tests (can be empty or add a basic test example in this phase)
+  │   │   └─ base.py       # Basic database configuration
+  │   ├─ models/           # Reserved directory for data models
+  │   └─ utils/            # Reserved directory for utility functions
+  ├─ tests/                # Test directory
   ├─ requirements.txt      # Project dependency list
   └─ README.md             # Project documentation
 ```
@@ -30,12 +33,17 @@ backend/
     pip install -r requirements.txt
     ```
 
-2.  Start the application:
+2.  Start the FastAPI application:
     ```bash
-    python app/main.py
+    cd app && python -m uvicorn main_fastapi:app --reload --host 0.0.0.0 --port 8000
     ```
 
-The application will run at `http://localhost:5000`.
+Or using the py launcher on Windows:
+```bash
+cd app && py -m uvicorn main_fastapi:app --reload --host 0.0.0.0 --port 8000
+```
+
+The application will run at `http://localhost:8000` with automatic API documentation at `http://localhost:8000/docs`.
 
 ## API List
 
@@ -47,12 +55,9 @@ The application will run at `http://localhost:5000`.
 -   **Success Response**:
     ```json
     {
-        "success": true,
-        "data": {
-            "status": "running",
-            "timestamp": "<current_time>"
-        },
-        "error": null
+        "status": "running",
+        "timestamp": "2024-01-01T00:00:00Z",
+        "version": "1.0.0"
     }
     ```
 \n+## Windows Setup (py launcher)
@@ -69,30 +74,35 @@ The application will run at `http://localhost:5000`.
    ```powershell
    pip install -r requirements.txt
    ```
-4. Start the application:
+4. Start the FastAPI application:
    ```powershell
-   python app/main.py
+   cd app && py -m uvicorn main_fastapi:app --reload --host 0.0.0.0 --port 8000
    ```
 \n+## API Usage Examples
 \n+Health check:
 ```bash
-curl http://localhost:5000/api/v1/health
+curl http://localhost:8000/api/v1/health
 ```
-\n+Submit valid user data:
+
+User registration:
 ```bash
-curl -X POST http://localhost:5000/api/v1/user/data \
+curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"user_id":"u1","data_type":"score","value":12.5}'
+  -d '{"username":"testuser","email":"test@example.com","password":"password123"}'
 ```
-\n+Submit invalid user data (will return 400):
+
+User login:
 ```bash
-curl -X POST http://localhost:5000/api/v1/user/data \
+curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"user_id":"u1","data_type":"score","value":"hello"}'
+  -d '{"username":"testuser","password":"password123"}'
 ```
-\n+Missing JSON body (will return 400):
+
+Submit health data:
 ```bash
-curl -X POST http://localhost:5000/api/v1/user/data
+curl -X POST http://localhost:8000/api/v1/data/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"user123","data_type":"sleep","data":{"duration":480,"quality":85}}'
 ```
 \n+## Running Tests
 \n+Install test dependencies and run pytest:
@@ -101,27 +111,71 @@ pip install -r requirements.txt
 pytest -q
 ```
 
-### User Data Reception
+### User Authentication
 
--   **URL**: `/api/v1/user/data`
+#### Register User
+-   **URL**: `/api/v1/auth/register`
 -   **Method**: `POST`
--   **Description**: Receives user data.
+-   **Description**: Register a new user
 -   **Request Body**:
     ```json
     {
-        "user_id": "string",
-        "data_type": "string",
-        "value": "number"
+        "username": "string",
+        "email": "string",
+        "password": "string"
     }
     ```
 -   **Success Response**:
     ```json
     {
-        "success": true,
+        "message": "User registered successfully",
+        "username": "testuser",
+        "email": "test@example.com"
+    }
+    ```
+
+#### Login User
+-   **URL**: `/api/v1/auth/login`
+-   **Method**: `POST`
+-   **Description**: Login user and get access token
+-   **Request Body**:
+    ```json
+    {
+        "username": "string",
+        "password": "string"
+    }
+    ```
+-   **Success Response**:
+    ```json
+    {
+        "access_token": "jwt_token_here",
+        "token_type": "bearer",
+        "username": "testuser"
+    }
+    ```
+
+### Health Data Ingestion
+
+-   **URL**: `/api/v1/data/ingest`
+-   **Method**: `POST`
+-   **Description**: Receives health data from frontend (HealthKit data)
+-   **Request Body**:
+    ```json
+    {
+        "user_id": "string",
+        "data_type": "sleep | hrv | run",
         "data": {
-            "message": "Data received successfully"
-        },
-        "error": null
+            "key": "value"
+        }
+    }
+    ```
+-   **Success Response**:
+    ```json
+    {
+        "message": "Data received successfully",
+        "user_id": "user123",
+        "data_type": "sleep",
+        "received_at": "2024-01-01T00:00:00Z"
     }
     ```
 
