@@ -1,8 +1,23 @@
 import pandas as pd
+import os
+from sklearn.impute import KNNImputer
+
+# Get the directory of the current script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Go up two levels to the project root
+project_root = os.path.dirname(os.path.dirname(script_dir))
+
+# Construct the paths to the data files
+daily_activity_path = os.path.join(project_root, 'dataset', 'mturkfitbit_export_4.12.16-5.12.16', 'Fitabase Data 4.12.16-5.12.16', 'dailyActivity_merged.csv')
+sleep_day_path = os.path.join(project_root, 'dataset', 'mturkfitbit_export_4.12.16-5.12.16', 'Fitabase Data 4.12.16-5.12.16', 'sleepDay_merged.csv')
+heart_rate_path = os.path.join(project_root, 'dataset', 'mturkfitbit_export_4.12.16-5.12.16', 'Fitabase Data 4.12.16-5.12.16', 'heartrate_seconds_merged.csv')
+results_path = os.path.join(script_dir, 'readiness_score_results.txt')
+
 
 # Load the datasets
-daily_activity = pd.read_csv('/home/kita/Downloads/AI-Voice-Assistant-for-Runners/dataset/mturkfitbit_export_4.12.16-5.12.16/Fitabase Data 4.12.16-5.12.16/dailyActivity_merged.csv')
-sleep_day = pd.read_csv('/home/kita/Downloads/AI-Voice-Assistant-for-Runners/dataset/mturkfitbit_export_4.12.16-5.12.16/Fitabase Data 4.12.16-5.12.16/sleepDay_merged.csv')
+daily_activity = pd.read_csv(daily_activity_path)
+sleep_day = pd.read_csv(sleep_day_path)
 
 # Clean up the column names
 daily_activity.columns = daily_activity.columns.str.strip()
@@ -12,6 +27,9 @@ sleep_day.columns = sleep_day.columns.str.strip()
 daily_activity['ActivityDate'] = pd.to_datetime(daily_activity['ActivityDate'], format='%m/%d/%Y')
 sleep_day['SleepDay'] = pd.to_datetime(sleep_day['SleepDay'], format='%m/%d/%Y %I:%M:%S %p').dt.date
 sleep_day['SleepDay'] = pd.to_datetime(sleep_day['SleepDay'])
+
+print("Daily activity date range:", daily_activity['ActivityDate'].min(), "to", daily_activity['ActivityDate'].max())
+print("Sleep day date range:", sleep_day['SleepDay'].min(), "to", sleep_day['SleepDay'].max())
 
 
 # Merge the two dataframes
@@ -26,51 +44,82 @@ merged_data.drop_duplicates(inplace=True)
 # --- Resting Heart Rate Calculation ---
 
 # Create a dictionary to store resting heart rate for each user and date
-resting_heart_rate = {}
+resting_heart_rates = {}
 
 # Process heart rate data in chunks
 heart_rate_chunk_size = 100000
-heart_rate_reader = pd.read_csv('/home/kita/Downloads/AI-Voice-Assistant-for-Runners/dataset/mturkfitbit_export_4.12.16-5.12.16/Fitabase Data 4.12.16-5.12.16/heartrate_seconds_merged.csv', chunksize=heart_rate_chunk_size)
+heart_rate_reader = pd.read_csv(heart_rate_path, chunksize=heart_rate_chunk_size)
+
+print("Processing heart rate data...")
+min_hr_date = None
+max_hr_date = None
 
 for i, heart_rate_chunk in enumerate(heart_rate_reader):
-    print(f"Processing heart rate chunk {i}...")
-    try:
-        # Convert 'Time' column to datetime objects
-        heart_rate_chunk['Time'] = pd.to_datetime(heart_rate_chunk['Time'], format='%m/%d/%Y %I:%M:%S %p')
+    # Convert 'Time' column to datetime objects
+    heart_rate_chunk['Time'] = pd.to_datetime(heart_rate_chunk['Time'], format='%m/%d/%Y %I:%M:%S %p')
+    heart_rate_chunk['Date'] = heart_rate_chunk['Time'].dt.date
 
-        # Iterate through each row in the merged_data to find sleep periods
-        for index, row in merged_data.iterrows():
-            user_id = row['Id']
-            sleep_date = row['SleepDay'].date()
+    if min_hr_date is None:
+        min_hr_date = heart_rate_chunk['Date'].min()
+    else:
+        min_hr_date = min(min_hr_date, heart_rate_chunk['Date'].min())
 
-            # Define the sleep period (from midnight to midnight)
-            sleep_start = pd.to_datetime(sleep_date)
-            sleep_end = sleep_start + pd.Timedelta(days=1)
+    if max_hr_date is None:
+        max_hr_date = heart_rate_chunk['Date'].max()
+    else:
+        max_hr_date = max(max_hr_date, heart_rate_chunk['Date'].max())
 
-            # Filter heart rate data for the current user and sleep period
-            user_heart_rate = heart_rate_chunk[
-                (heart_rate_chunk['Id'] == user_id) &
-                (heart_rate_chunk['Time'] >= sleep_start) &
-                (heart_rate_chunk['Time'] < sleep_end)
-            ]
 
-            # If there is heart rate data for the sleep period, find the minimum
-            if not user_heart_rate.empty:
-                min_heart_rate = user_heart_rate['Value'].min()
+    # Group by Id and Date to find the minimum heart rate for each day
+    min_hr_chunk = heart_rate_chunk.groupby(['Id', 'Date'])['Value'].min().reset_index()
 
-                # Update the resting_heart_rate dictionary
-                if (user_id, sleep_date) not in resting_heart_rate:
-                    resting_heart_rate[(user_id, sleep_date)] = min_heart_rate
-                else:
-                    resting_heart_rate[(user_id, sleep_date)] = min(resting_heart_rate[(user_id, sleep_date)], min_heart_rate)
-    except Exception as e:
-        print(f"Error processing chunk {i}: {e}")
+    # Update the resting_heart_rates dictionary
+    for index, row in min_hr_chunk.iterrows():
+        user_id = row['Id']
+        date = row['Date']
+        min_hr = row['Value']
+        if (user_id, date) not in resting_heart_rates:
+            resting_heart_rates[(user_id, date)] = min_hr
+        else:
+            resting_heart_rates[(user_id, date)] = min(resting_heart_rates[(user_id, date)], min_hr)
 
-# Add the resting heart rate to the merged_data dataframe
-merged_data['RestingHeartRate'] = merged_data.apply(
-    lambda row: resting_heart_rate.get((row['Id'], row['SleepDay'].date())),
-    axis=1
-)
+print("Heart rate date range:", min_hr_date, "to", max_hr_date)
+
+# Convert the dictionary to a dataframe
+resting_hr_df = pd.DataFrame(resting_heart_rates.items(), columns=['Id_Date', 'RestingHeartRate'])
+resting_hr_df[['Id', 'Date']] = pd.DataFrame(resting_hr_df['Id_Date'].tolist(), index=resting_hr_df.index)
+resting_hr_df.drop('Id_Date', axis=1, inplace=True)
+resting_hr_df['Date'] = pd.to_datetime(resting_hr_df['Date'])
+
+
+# Merge the resting heart rate data with the main dataframe
+merged_data = pd.merge(merged_data, resting_hr_df, left_on=['Id', 'ActivityDate'], right_on=['Id', 'Date'], how='left')
+merged_data.drop('Date', axis=1, inplace=True)
+
+# --- k-NN Imputation for RestingHeartRate ---
+print("\n--- k-NN Imputation for RestingHeartRate ---")
+
+# Select features for imputation
+imputation_features = [
+    'TotalMinutesAsleep',
+    'VeryActiveMinutes',
+    'FairlyActiveMinutes',
+    'LightlyActiveMinutes',
+    'SedentaryMinutes',
+    'RestingHeartRate'
+]
+imputation_data = merged_data[imputation_features]
+
+# Initialize KNNImputer
+imputer = KNNImputer(n_neighbors=5)
+
+# Perform imputation
+imputed_data = imputer.fit_transform(imputation_data)
+
+# Update the dataframe with imputed values
+imputed_df = pd.DataFrame(imputed_data, columns=imputation_features)
+merged_data['RestingHeartRate'] = imputed_df['RestingHeartRate']
+
 
 # --- Correlation Analysis ---
 print("--- Correlation Analysis ---")
@@ -108,8 +157,19 @@ merged_data['ReadinessScore'] = (
 print("\n--- Merged Data with Readiness Score ---")
 print(merged_data[['Id', 'ActivityDate', 'TotalMinutesAsleep', 'TotalActiveMinutes', 'RestingHeartRate', 'ReadinessScore']].head())
 
+# --- NaN Value Analysis ---
+print("\n--- NaN Value Analysis ---")
+total_rows = len(merged_data)
+nan_resting_hr = merged_data['RestingHeartRate'].isna().sum()
+nan_readiness_score = merged_data['ReadinessScore'].isna().sum()
+
+print(f"Total rows: {total_rows}")
+print(f"Number of NaN in RestingHeartRate: {nan_resting_hr} ({nan_resting_hr/total_rows:.2%})")
+print(f"Number of NaN in ReadinessScore: {nan_readiness_score} ({nan_readiness_score/total_rows:.2%})")
+
+
 # Save the results to a file
-with open('/home/kita/Downloads/AI-Voice-Assistant-for-Runners/backend/app/readiness_score_results.txt', 'w') as f:
+with open(results_path, 'w') as f:
     f.write("--- Correlation Matrix ---\n")
     f.write(str(correlation_matrix))
     f.write("\n\n--- Readiness Score Logic ---\n")
