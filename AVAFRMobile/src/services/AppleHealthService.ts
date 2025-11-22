@@ -2,6 +2,14 @@ import AppleHealthKit, {
   HealthValue,
   HealthKitPermissions,
 } from 'react-native-health';
+import apiClient from '../api/client';
+
+// 定义健康数据类型
+interface HealthData {
+  sleepHours?: number;
+  stepCount?: number;
+  heartRate?: number;
+}
 
 const permissions: HealthKitPermissions = {
   permissions: {
@@ -48,7 +56,9 @@ const getSleepData = async (): Promise<number> => {
         return resolve(0);
       }
       const totalSleepMinutes = results.reduce((total, session) => {
-        if (session.value === 'ASLEEP') {
+        // 使用类型断言来避免类型检查错误 - 先转换为unknown再转换为string
+        const sessionValue = session.value as unknown as string;
+        if (sessionValue === 'ASLEEP') {
           const start = new Date(session.startDate);
           const end = new Date(session.endDate);
           return total + (end.getTime() - start.getTime()) / (1000 * 60);
@@ -78,7 +88,6 @@ const getDailySteps = async (): Promise<number> => {
 const getHeartRate = async (): Promise<number> => {
   return new Promise((resolve) => {
     const options = {
-      unit: 'bpm',
       startDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
       ascending: false,
       limit: 1,
@@ -93,9 +102,45 @@ const getHeartRate = async (): Promise<number> => {
   });
 };
 
+// 上传健康数据到后端
+const uploadHealthData = async (data: HealthData): Promise<boolean> => {
+  try {
+    // 上传睡眠数据
+    if (data.sleepHours !== undefined) {
+      await apiClient.post('/api/v1/health-data/upload', {
+        data_type: 'sleep',
+        data: { hours: data.sleepHours },
+      });
+    }
+
+    // 上传步数数据
+    if (data.stepCount !== undefined) {
+      await apiClient.post('/api/v1/health-data/upload', {
+        data_type: 'steps',
+        data: { count: data.stepCount },
+      });
+    }
+
+    // 上传心率数据
+    if (data.heartRate !== undefined) {
+      await apiClient.post('/api/v1/health-data/upload', {
+        data_type: 'heart_rate',
+        data: { value: data.heartRate },
+      });
+    }
+
+    console.log('Health data uploaded successfully');
+    return true;
+  } catch (error) {
+    console.error('Error uploading health data:', error);
+    return false;
+  }
+};
+
 export default {
   authorize,
   getSleepData,
   getDailySteps,
   getHeartRate,
+  uploadHealthData,
 };

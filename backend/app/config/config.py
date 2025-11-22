@@ -1,5 +1,6 @@
 # Configuration class for the application
 from datetime import timedelta
+import os
 
 
 class Config:
@@ -18,3 +19,5 @@ class Config:
     COMPRESS_MIN_SIZE = 1024
     # CORS origins
     CORS_ORIGINS = ["*"]
+    # Database URL
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")

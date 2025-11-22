@@ -1,4 +1,12 @@
 import GoogleFit, { BucketUnit, Scopes } from 'react-native-google-fit';
+import apiClient from '../api/client';
+
+// 定义健康数据类型
+interface HealthData {
+  sleepHours?: number;
+  stepCount?: number;
+  heartRate?: number;
+}
 
 const authorize = async () => {
   const options = {
@@ -26,15 +34,15 @@ const authorize = async () => {
 const getSleepData = async () => {
   const today = new Date();
   const lastNight = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1, 18, 0); // 6 PM yesterday
-  const options = {
-    startDate: lastNight.toISOString(),
-    endDate: today.toISOString(),
-  };
+  const startDate = lastNight.toISOString();
+  const endDate = today.toISOString();
   try {
-    const sleepData = await GoogleFit.getSleepSamples(options);
+    // getSleepSamples 需要两个参数：日期对象和inLocalTimeZone布尔值
+    const sleepData = await GoogleFit.getSleepSamples({ startDate, endDate }, true);
     // Calculate total sleep in hours
-    const totalSleepMinutes = sleepData.reduce((total, session) => {
-      if (session.value === 'ASLEEP') {
+    const totalSleepMinutes = sleepData.reduce((total, session: any) => {
+      // 修复类型访问问题，使用 any 类型来避免类型检查错误
+      if (session.value === 'ASLEEP' || session.sleepStage === 4) { // 4 表示深度睡眠
         const start = new Date(session.startDate);
         const end = new Date(session.endDate);
         return total + (end.getTime() - start.getTime()) / (1000 * 60);
@@ -51,6 +59,8 @@ const getSleepData = async () => {
 const getDailySteps = async () => {
   const today = new Date();
   const options = {
+    startDate: new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString(),
+    endDate: today.toISOString(),
     bucketUnit: BucketUnit.DAY,
     bucketInterval: 1,
   };
@@ -68,26 +78,60 @@ const getDailySteps = async () => {
 
 const getHeartRate = async () => {
   const today = new Date();
-  const last24Hours = new Date(today.getTime() - 24 * 60 * 60 * 1000);
   const options = {
-    startDate: last24Hours.toISOString(),
+    startDate: new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString(),
     endDate: today.toISOString(),
+    bucketUnit: BucketUnit.DAY,
+    bucketInterval: 1,
   };
   try {
-    const heartRateSamples = await GoogleFit.getHeartRateSamples(options);
-    // For simplicity, let's find the latest resting heart rate
-    const latestSample = heartRateSamples[heartRateSamples.length - 1];
-    return latestSample ? latestSample.value : 0;
+    const heartRate = await GoogleFit.getHeartRateSamples(options);
+    return heartRate[0]?.value || 0;
   } catch (error) {
-    console.log('Error fetching heart rate:', error);
+    console.log('Error fetching heart rate samples:', error);
     return 0;
   }
 };
 
+// 上传健康数据到后端
+const uploadHealthData = async (data: HealthData): Promise<boolean> => {
+  try {
+    // 上传睡眠数据
+    if (data.sleepHours !== undefined) {
+      await apiClient.post('/api/v1/health-data/upload', {
+        data_type: 'sleep',
+        data: { hours: data.sleepHours },
+      });
+    }
+
+    // 上传步数数据
+    if (data.stepCount !== undefined) {
+      await apiClient.post('/api/v1/health-data/upload', {
+        data_type: 'steps',
+        data: { count: data.stepCount },
+      });
+    }
+
+    // 上传心率数据
+    if (data.heartRate !== undefined) {
+      await apiClient.post('/api/v1/health-data/upload', {
+        data_type: 'heart_rate',
+        data: { value: data.heartRate },
+      });
+    }
+
+    console.log('Health data uploaded successfully');
+    return true;
+  } catch (error) {
+    console.error('Error uploading health data:', error);
+    return false;
+  }
+};
 
 export default {
   authorize,
   getSleepData,
   getDailySteps,
   getHeartRate,
+  uploadHealthData,
 };

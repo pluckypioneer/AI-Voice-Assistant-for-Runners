@@ -11,6 +11,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import HealthService from '../services/HealthService';
+import apiClient from '../api/client';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -37,20 +38,21 @@ const HomeScreen = ({ navigation }: Props) => {
   };
 
   const fetchReadinessData = async () => {
-    const sleepHours = await GoogleFitService.getSleepData();
-    const dailySteps = await GoogleFitService.getDailySteps();
-    const latestHeartRate = await GoogleFitService.getHeartRate();
+    // 获取健康数据
+    const sleepHours = await HealthService.getSleepData();
+    const dailySteps = await HealthService.getDailySteps();
+    const latestHeartRate = await HealthService.getHeartRate();
 
     setSleep(Math.round(sleepHours * 10) / 10);
     setSteps(dailySteps);
     setHeartRate(latestHeartRate);
 
-    // Simple readiness logic
+    // 简单的readiness计算逻辑
     let score = 0;
     if (sleepHours > 7) score += 40;
     else if (sleepHours > 6) score += 30;
 
-    if (dailySteps < 5000) score += 30; // Less active yesterday = more rested
+    if (dailySteps < 5000) score += 30; // 昨天活动较少 = 更休息
     else if (dailySteps < 10000) score += 20;
 
     if (latestHeartRate > 0 && latestHeartRate < 65) score += 30;
@@ -61,6 +63,21 @@ const HomeScreen = ({ navigation }: Props) => {
     else if (score < 75) message = 'Looking good';
 
     setReadiness({ score, message });
+
+    // 上传健康数据到后端
+    await HealthService.uploadHealthData({
+      sleepHours: sleepHours,
+      stepCount: dailySteps,
+      heartRate: latestHeartRate,
+    });
+
+    // 从后端获取用户状态
+    try {
+      const response = await apiClient.get('/api/v1/health');
+      console.log('User status from backend:', response.data);
+    } catch (error) {
+      console.error('Error fetching user status:', error);
+    }
   };
 
   return (
@@ -90,7 +107,7 @@ const HomeScreen = ({ navigation }: Props) => {
       </View>
 
       <View style={styles.buttonContainer}>
-        <Button title="1. Authorize Google Fit" onPress={handleAuthorization} />
+        <Button title="1. Authorize Health Data" onPress={handleAuthorization} />
         <View style={styles.spacer} />
         <Button
           title="2. Fetch Readiness Data"
