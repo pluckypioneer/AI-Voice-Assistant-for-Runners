@@ -1,0 +1,8 @@
+--- Correlation Matrix ---
+                    TotalMinutesAsleep  TotalActiveMinutes  RestingHeartRate
+TotalMinutesAsleep            1.000000           -0.069294         -0.006107
+TotalActiveMinutes           -0.069294            1.000000          0.035052
+RestingHeartRate             -0.006107            0.035052          1.000000
+
+--- Readiness Score Logic ---
+Readiness Score = ((TotalMinutesAsleep / max_sleep) * 0.4) + ((TotalActiveMinutes / max_active_minutes) * 0.3) + (((max_hr - RestingHeartRate) / (max_hr - min_hr)) * 0.3)) * 100
