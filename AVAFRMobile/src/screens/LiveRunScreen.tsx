@@ -12,7 +12,7 @@ const LiveRunScreen = ({ navigation }: Props) => {
   const [heartRate, setHeartRate] = useState(120);
   const [alert, setAlert] = useState('Keep a steady pace!');
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (isActive) {

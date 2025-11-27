@@ -7,7 +7,6 @@ This is the backend service for the AVAFR project, built with FastAPI.
 ```
 backend/
   ├─ app/
-  │   ├─ main.py          # Legacy Flask entry point
   │   ├─ main_fastapi.py  # FastAPI entry point (primary)
   │   ├─ api/
   │   │   ├─ v1/
@@ -26,6 +25,22 @@ backend/
   └─ README.md             # Project documentation
 ```
 
+## Database Initialization
+
+Before running the application, you need to initialize the database:
+
+1.  Make sure you have configured the database connection string in `app/config/config.py`:
+    ```python
+    DATABASE_URL = "sqlite:///./av afr.db"
+    ```
+
+2.  Run the database initialization script:
+    ```bash
+    cd app && python -c "from db.base import Base, engine; Base.metadata.create_all(bind=engine)"
+    ```
+
+This will create the necessary tables in your database.
+
 ## Local Startup Steps
 
 1.  Install dependencies:
@@ -33,7 +48,9 @@ backend/
     pip install -r requirements.txt
     ```
 
-2.  Start the FastAPI application:
+2.  Initialize the database (see Database Initialization section above)
+
+3.  Start the FastAPI application:
     ```bash
     cd app && python -m uvicorn main_fastapi:app --reload --host 0.0.0.0 --port 8000
     ```
@@ -60,9 +77,11 @@ The application will run at `http://localhost:8000` with automatic API documenta
         "version": "1.0.0"
     }
     ```
-\n+## Windows Setup (py launcher)
-\n+On Windows, you can use the `py` launcher to create and activate a virtual environment:
-\n+1. Create virtual environment:
+
+## Windows Setup (py launcher)
+
+On Windows, you can use the `py` launcher to create and activate a virtual environment:
+1. Create virtual environment:
    ```powershell
    py -m venv venv
    ```
@@ -74,38 +93,49 @@ The application will run at `http://localhost:8000` with automatic API documenta
    ```powershell
    pip install -r requirements.txt
    ```
-4. Start the FastAPI application:
+4. Initialize the database (see Database Initialization section above)
+5. Start the FastAPI application:
    ```powershell
    cd app && py -m uvicorn main_fastapi:app --reload --host 0.0.0.0 --port 8000
    ```
-\n+## API Usage Examples
-\n+Health check:
+
+## API Usage Examples
+
+### Health check:
 ```bash
 curl http://localhost:8000/api/v1/health
 ```
 
-User registration:
+### User registration:
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"testuser","email":"test@example.com","password":"password123"}'
 ```
 
-User login:
+### User login:
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"testuser","password":"password123"}'
 ```
 
-Submit health data:
+### Submit health data:
 ```bash
 curl -X POST http://localhost:8000/api/v1/data/ingest \
   -H "Content-Type: application/json" \
-  -d '{"user_id":"user123","data_type":"sleep","data":{"duration":480,"quality":85}}'
+  -d '{"user_id":1,"data_type":"sleep","data":{"duration":480,"quality":85}}'
 ```
-\n+## Running Tests
-\n+Install test dependencies and run pytest:
+
+### Query health data:
+```bash
+curl -X GET http://localhost:8000/api/v1/data/query/1 \
+  -H "Content-Type: application/json"
+```
+
+## Running Tests
+
+Install test dependencies and run pytest:
 ```bash
 pip install -r requirements.txt
 pytest -q
@@ -129,6 +159,7 @@ pytest -q
     ```json
     {
         "message": "User registered successfully",
+        "user_id": 1,
         "username": "testuser",
         "email": "test@example.com"
     }
@@ -154,15 +185,16 @@ pytest -q
     }
     ```
 
-### Health Data Ingestion
+### Health Data Operations
 
+#### Submit Health Data
 -   **URL**: `/api/v1/data/ingest`
 -   **Method**: `POST`
 -   **Description**: Receives health data from frontend (HealthKit data)
 -   **Request Body**:
     ```json
     {
-        "user_id": "string",
+        "user_id": 1,
         "data_type": "sleep | hrv | run",
         "data": {
             "key": "value"
@@ -173,10 +205,30 @@ pytest -q
     ```json
     {
         "message": "Data received successfully",
-        "user_id": "user123",
+        "user_id": 1,
         "data_type": "sleep",
         "received_at": "2024-01-01T00:00:00Z"
     }
+    ```
+
+#### Query Health Data
+-   **URL**: `/api/v1/data/query/{user_id}`
+-   **Method**: `GET`
+-   **Description**: Query all health data for a specific user
+-   **Success Response**:
+    ```json
+    [
+        {
+            "id": 1,
+            "user_id": 1,
+            "data_type": "sleep",
+            "data": {
+                "duration": 480,
+                "quality": 85
+            },
+            "created_at": "2024-01-01T00:00:00Z"
+        }
+    ]
     ```
 
 ## Mobile Adaptation Notes
