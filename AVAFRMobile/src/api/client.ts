@@ -1,15 +1,17 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
+import { Platform } from 'react-native';
 
-// 创建Axios实例
+// Create Axios instance
 const apiClient: AxiosInstance = axios.create({
-  baseURL: 'http://localhost:8000', // 后端基础URL
-  timeout: 10000, // 请求超时时间
+  // Use 10.0.2.2 for Android Emulator to access host machine's localhost
+  baseURL: Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000',
+  timeout: 10000, // Request timeout
 });
 
-// 请求拦截器
+// Request interceptor
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // 可以在这里添加认证token等
+    // Can add auth token here
     return config;
   },
   (error) => {
@@ -17,13 +19,13 @@ apiClient.interceptors.request.use(
   }
 );
 
-// 响应拦截器
+// Response interceptor
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     return response;
   },
   (error) => {
-    // 统一处理错误
+    // Handle errors globally
     console.error('API Error:', error.response?.data || error.message);
     return Promise.reject(error);
   }

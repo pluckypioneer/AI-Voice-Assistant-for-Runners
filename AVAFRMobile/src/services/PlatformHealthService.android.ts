@@ -93,32 +93,16 @@ const getHeartRate = async () => {
   }
 };
 
-// 上传健康数据到后端
+// Upload health data to backend
 const uploadHealthData = async (data: HealthData): Promise<boolean> => {
   try {
-    // 上传睡眠数据
-    if (data.sleepHours !== undefined) {
-      await apiClient.post('/api/v1/health-data/upload', {
-        data_type: 'sleep',
-        data: { hours: data.sleepHours },
-      });
-    }
-
-    // 上传步数数据
-    if (data.stepCount !== undefined) {
-      await apiClient.post('/api/v1/health-data/upload', {
-        data_type: 'steps',
-        data: { count: data.stepCount },
-      });
-    }
-
-    // 上传心率数据
-    if (data.heartRate !== undefined) {
-      await apiClient.post('/api/v1/health-data/upload', {
-        data_type: 'heart_rate',
-        data: { value: data.heartRate },
-      });
-    }
+    // Send all daily health data to the new JSON-based endpoint
+    await apiClient.post('/api/v1/health-data/save', {
+      sleep_hours: data.sleepHours,
+      step_count: data.stepCount,
+      heart_rate: data.heartRate,
+      timestamp: new Date().toISOString()
+    });
 
     console.log('Health data uploaded successfully');
     return true;

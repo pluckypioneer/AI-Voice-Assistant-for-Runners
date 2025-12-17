@@ -6,8 +6,8 @@ import sys
 # Add the parent directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from api.v1.fastapi_routes import router as v1_router
-from config.config import Config
+from app.api.v1.fastapi_routes import router as v1_router
+from app.config.config import Config
 
 app = FastAPI(
     title="AVAFR API",

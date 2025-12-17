@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import LiveRunScreen from '../screens/LiveRunScreen';
 import PostRunSummaryScreen from '../screens/PostRunSummaryScreen';
+import RunHistoryScreen from '../screens/RunHistoryScreen';
 import { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -15,6 +16,7 @@ const AppNavigator = () => {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="LiveRun" component={LiveRunScreen} />
         <Stack.Screen name="PostRunSummary" component={PostRunSummaryScreen} />
+        <Stack.Screen name="RunHistory" component={RunHistoryScreen} options={{ title: 'History' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

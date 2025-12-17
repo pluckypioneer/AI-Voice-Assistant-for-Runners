@@ -16,6 +16,8 @@ end
 
 target 'AVAFRMobile' do
   config = use_native_modules!
+  
+  pod 'HealthKitModule', :path => './AVAFRMobile/HealthKit'
 
   use_react_native!(
     :path => config[:reactNativePath],

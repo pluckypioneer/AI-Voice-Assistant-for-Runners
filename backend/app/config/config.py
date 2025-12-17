@@ -2,6 +2,8 @@
 from datetime import timedelta
 import os
 
+# Build paths inside the project like this: os.path.join(BASE_DIR, ...)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class Config:
     # Debug mode for the application
@@ -20,4 +22,4 @@ class Config:
     # CORS origins
     CORS_ORIGINS = ["*"]
     # Database URL
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+    DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'test.db')}")

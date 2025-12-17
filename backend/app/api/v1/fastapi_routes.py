@@ -15,7 +15,8 @@ from app.config.config import Config
 from app.db.base import get_db
 from app.models.user import User
 from app.models.fitness_data import FitnessData
-from app.schemas import UserCreate, UserLogin, Token, FitnessDataUpload
+from app.schemas import UserCreate, UserLogin, Token, FitnessDataUpload, RunAnalysisRequest, RunAnalysisResponse, RunHistoryItem
+from typing import List
 
 router = APIRouter()
 
@@ -96,12 +97,166 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db 
     
     return {"access_token": access_token, "token_type": "bearer"}
 
+@router.post("/runs/analyze", response_model=RunAnalysisResponse)
+def analyze_run(
+    run_data: RunAnalysisRequest,
+    db = Depends(get_db)
+):
+    # TEMPORARY: Hardcode user for testing without auth
+    class DummyUser:
+        id = 1
+    current_user = DummyUser()
+
+    # Simple v1 Model Logic
+    insight = "Great run!"
+    
+    # Analyze distance
+    if run_data.distance > 5.0:
+        insight = "Impressive endurance! You ran over 5km."
+    elif run_data.distance < 2.0:
+        insight = "Good start! Short runs are great for recovery."
+    
+    # Analyze heart rate if available
+    if run_data.heart_rate:
+        if run_data.heart_rate > 160:
+            insight += " Your heart rate was high, make sure to rest well."
+        elif run_data.heart_rate < 120:
+            insight += " You stayed in a comfortable aerobic zone."
+
+    # Compare to history (simplified)
+    # Fetch last run to compare
+    last_runs = db.query(FitnessData).filter(
+        FitnessData.user_id == current_user.id,
+        FitnessData.data_type == "json"  # Assuming runs are stored as json
+    ).order_by(FitnessData.created_at.desc()).limit(5).all()
+    
+    avg_dist = 0
+    count = 0
+    for run in last_runs:
+        try:
+            data = json.loads(run.data)
+            if "distance" in data:
+                avg_dist += float(data["distance"])
+                count += 1
+        except:
+            continue
+            
+    if count > 0:
+        avg_dist /= count
+        if run_data.distance > avg_dist * 1.1:
+            insight += f" You ran 10% further than your recent average of {avg_dist:.1f}km!"
+    
+    return {"insight": insight}
+
+@router.get("/runs", response_model=List[RunHistoryItem])
+def get_run_history(
+    db = Depends(get_db)
+):
+    # TEMPORARY: Hardcode user for testing without auth
+    current_user_id = 1
+
+    # Fetch all JSON data which we assume contains runs
+    fitness_data = db.query(FitnessData).filter(
+        FitnessData.user_id == current_user_id,
+        FitnessData.data_type == "json"
+    ).order_by(FitnessData.created_at.desc()).all()
+    
+    history = []
+    for item in fitness_data:
+        try:
+            data = json.loads(item.data)
+            # Check if it looks like a run (has distance/duration)
+            if "distance" in data and "duration" in data:
+                history.append({
+                    "id": item.id,
+                    "date": item.created_at,
+                    "distance": float(data["distance"]),
+                    "duration": str(data["duration"]),
+                    "avg_heart_rate": data.get("heartRate") or data.get("heart_rate")
+                })
+        except json.JSONDecodeError:
+            continue
+            
+    return history
+
+@router.post("/runs/save")
+def save_run(
+    run_data: RunAnalysisRequest,
+    db = Depends(get_db)
+):
+    print(f"DEBUG: save_run called with {run_data}")
+    # TEMPORARY: Hardcode user for testing
+    class DummyUser:
+        id = 1
+    current_user = DummyUser()
+
+    try:
+        # Create run data object matching the structure we use in analysis/history
+        data_to_save = {
+            "duration": run_data.duration,
+            "distance": run_data.distance,
+            "heartRate": run_data.heart_rate,
+            "stepCount": run_data.step_count,
+            "timestamp": datetime.now().isoformat()
+        }
+
+        # Create fitness data record
+        fitness_data = FitnessData(
+            user_id=current_user.id,
+            data_type="json",
+            data=json.dumps(data_to_save)
+        )
+        
+        db.add(fitness_data)
+        db.commit()
+        db.refresh(fitness_data)
+        
+        return {
+            "message": "Run saved successfully",
+            "id": fitness_data.id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save run: {str(e)}")
+
+@router.post("/health-data/save")
+def save_daily_health_data(
+    data: dict,  # Generic dict to accept any health structure
+    db = Depends(get_db)
+):
+    # TEMPORARY: Hardcode user for testing
+    class DummyUser:
+        id = 1
+    current_user = DummyUser()
+
+    try:
+        # Create fitness data record
+        fitness_data = FitnessData(
+            user_id=current_user.id,
+            data_type="daily_summary",
+            data=json.dumps(data)
+        )
+        
+        db.add(fitness_data)
+        db.commit()
+        db.refresh(fitness_data)
+        
+        return {
+            "message": "Health data saved successfully",
+            "id": fitness_data.id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save health data: {str(e)}")
+
 @router.post("/health-data/upload")
 def upload_health_data(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
     db = Depends(get_db)
 ):
+    # TEMPORARY: Hardcode user for testing without auth
+    class DummyUser:
+        id = 1
+    current_user = DummyUser()
+
     try:
         # Read file content
         content = file.file.read()
@@ -136,11 +291,13 @@ def upload_health_data(
 @router.get("/health-data/{data_type}")
 def get_health_data(
     data_type: str,
-    current_user: User = Depends(get_current_user),
     db = Depends(get_db)
 ):
+    # TEMPORARY: Hardcode user for testing without auth
+    current_user_id = 1
+
     fitness_data = db.query(FitnessData).filter(
-        FitnessData.user_id == current_user.id,
+        FitnessData.user_id == current_user_id,
         FitnessData.data_type == data_type
     ).all()
     
